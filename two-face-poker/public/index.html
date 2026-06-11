@@ -108,6 +108,26 @@
   .chip.c5  { background: #2563eb; }                /* 5코인 = 파랑 */
   .chip.c10 { background: #111; border-color: #fbbf24; } /* 10코인 = 검정/금 */
   .chip-amt { font-size: 13px; font-weight: 800; color: #fde68a; margin-left: 8px; align-self: center; }
+  .chip.ghost { opacity: .35; }
+
+  /* 칩 배팅 애니메이션 */
+  @keyframes chipIn {
+    0%   { transform: translateY(-52px) scale(.3); opacity: 0; }
+    60%  { transform: translateY(4px) scale(1.1); opacity: 1; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  @keyframes chipInGhost {
+    0%   { transform: translateY(-52px) scale(.3); opacity: 0; }
+    60%  { transform: translateY(4px) scale(1.1); opacity: .35; }
+    100% { transform: translateY(0) scale(1); opacity: .35; }
+  }
+  .chip.anim { animation: chipIn .5s cubic-bezier(.25,.9,.35,1.25) backwards; }
+  .chip.ghost.anim { animation-name: chipInGhost; }
+  @keyframes potPulse {
+    0% { box-shadow: 0 0 0 0 rgba(251,191,36,.6); }
+    100% { box-shadow: 0 0 0 18px rgba(251,191,36,0); }
+  }
+  .pot-area.pulse { animation: potPulse .6s ease-out; }
 
   .status { text-align: center; font-size: 14px; min-height: 20px; color: #fef3c7; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
 
@@ -218,9 +238,12 @@
 
   <!-- 면 선택 보조 -->
   <div class="actions hidden" id="sideActions">
+    <span style="align-self:center;font-size:13px;color:#94a3b8">배팅액</span>
+    <input type="number" id="initAmt" min="1" value="1" style="width:64px;text-align:center;padding:9px">
     <button class="btn-both" id="pickBoth">⚪⚫ 양면 배팅 (2배 지불)</button>
+    <button class="btn-fold" id="sideFoldBtn">다이 (1코인)</button>
   </div>
-  <div class="hint hidden" id="sideHint">위의 내 WHITE / BLACK 존을 클릭해 배팅하세요. 양면 배팅: 두 면 모두 이기면 팟 + 보너스 10코인, 단 모든 지불 2배!</div>
+  <div class="hint hidden" id="sideHint">배팅액을 정하고 내 WHITE / BLACK 존을 클릭하세요. 양면 배팅: 두 면 모두 이기면 팟 + 보너스 10코인, 단 모든 지불 2배! 다이하면 1코인만 잃고 포기합니다.</div>
 
   <!-- 배팅 액션 -->
   <div class="actions hidden" id="betActions">
@@ -262,9 +285,11 @@ connect();
 $('createBtn').onclick = () => sendMsg({ type: 'create', name: $('nameInput').value || '플레이어1' });
 $('aiBtn').onclick = () => sendMsg({ type: 'createAI', name: $('nameInput').value || '플레이어' });
 $('joinBtn').onclick = () => sendMsg({ type: 'join', code: $('codeInput').value, name: $('nameInput').value || '플레이어2' });
-$('pickBoth').onclick  = () => sendMsg({ type: 'side', side: 'both' });
-$('myWhiteZone').onclick = () => { if (canPick()) sendMsg({ type: 'side', side: 'white' }); };
-$('myBlackZone').onclick = () => { if (canPick()) sendMsg({ type: 'side', side: 'black' }); };
+function initAmt() { return Math.max(1, Math.floor(Number($('initAmt').value)) || 1); }
+$('pickBoth').onclick  = () => sendMsg({ type: 'side', side: 'both', amount: initAmt() });
+$('sideFoldBtn').onclick = () => { if (canPick()) sendMsg({ type: 'action', action: 'fold' }); };
+$('myWhiteZone').onclick = () => { if (canPick()) sendMsg({ type: 'side', side: 'white', amount: initAmt() }); };
+$('myBlackZone').onclick = () => { if (canPick()) sendMsg({ type: 'side', side: 'black', amount: initAmt() }); };
 $('checkBtn').onclick = () => sendMsg({ type: 'action', action: 'check' });
 $('callBtn').onclick  = () => sendMsg({ type: 'action', action: 'call' });
 $('foldBtn').onclick  = () => sendMsg({ type: 'action', action: 'fold' });
@@ -298,18 +323,32 @@ function faceHtml(color, num, cls = '') {
 }
 
 // 코인 금액 → 칩 이미지 (10=검정금, 5=파랑, 1=빨강)
-function chipsHtml(amount) {
+function chipsHtml(amount, animate, ghost) {
   if (!amount) return '';
   let html = '', a = amount, n = 0;
-  const add = c => { if (n < 9) html += `<div class="chip ${c}"></div>`; n++; };
+  const add = c => {
+    if (n < 9) html += `<div class="chip ${c}${ghost ? ' ghost' : ''}${animate ? ' anim' : ''}" style="animation-delay:${n * .07}s"></div>`;
+    n++;
+  };
   while (a >= 10) { add('c10'); a -= 10; }
   while (a >= 5)  { add('c5');  a -= 5; }
   while (a >= 1)  { add('c1');  a -= 1; }
   return html + `<span class="chip-amt">${amount}</span>`;
 }
 
+// 이전 금액 기억해서 늘어났을 때만 애니메이션
+const prevAmts = {};
+function setChips(elId, amount, ghost) {
+  const animate = amount > (prevAmts[elId] || 0);
+  $(elId).innerHTML = chipsHtml(amount, animate, ghost);
+  prevAmts[elId] = amount;
+  return animate;
+}
+
+let prevRound = 0;
 function render(s) {
   lastState = s;
+  if (s.round !== prevRound) { for (const k in prevAmts) prevAmts[k] = 0; prevRound = s.round; }
   $('lobby').classList.add('hidden');
   $('game').classList.remove('hidden');
 
@@ -319,7 +358,10 @@ function render(s) {
   $('oppCoins').textContent = s.opp ? s.opp.coins : '-';
   $('pot').textContent = s.pot;
   $('roundLabel').textContent = s.round ? `${s.round}라운드` : '';
-  $('potChips').innerHTML = chipsHtml(s.pot);
+  if (setChips('potChips', s.pot)) {
+    const pa = document.querySelector('.pot-area');
+    pa.classList.remove('pulse'); void pa.offsetWidth; pa.classList.add('pulse');
+  }
   $('carryInfo').classList.toggle('hidden', !s.carry);
   if (s.carry) $('carryInfo').textContent = `무승부 이월 ${s.carry}코인 포함 예정`;
 
@@ -340,8 +382,8 @@ function render(s) {
   // ----- 내 배팅 존 칩 -----
   const myLevel = s.you.level || 0;
   const mySide = s.you.side;
-  $('myWhiteChips').innerHTML = chipsHtml(mySide === 'white' || mySide === 'both' ? myLevel : 0);
-  $('myBlackChips').innerHTML = chipsHtml(mySide === 'black' || mySide === 'both' ? myLevel : 0);
+  setChips('myWhiteChips', mySide === 'white' || mySide === 'both' ? myLevel : 0);
+  setChips('myBlackChips', mySide === 'black' || mySide === 'both' ? myLevel : 0);
   $('myWhiteZone').classList.toggle('active', mySide === 'white' || mySide === 'both');
   $('myBlackZone').classList.toggle('active', mySide === 'black' || mySide === 'both');
   const pickable = canPick();
@@ -361,8 +403,8 @@ function render(s) {
     const bCls = oppSide === 'black' || oppSide === 'both' ? 'picked' : 'dim';
     $('oppFaces').innerHTML = faceHtml('white', oppReveal.card.white, wCls) + faceHtml('black', oppReveal.card.black, bCls);
     $('oppCardLabel').textContent = '상대 카드 (공개)';
-    $('oppWhiteChips').innerHTML = chipsHtml(oppSide === 'white' || oppSide === 'both' ? oppLevel : 0);
-    $('oppBlackChips').innerHTML = chipsHtml(oppSide === 'black' || oppSide === 'both' ? oppLevel : 0);
+    setChips('oppWhiteChips', oppSide === 'white' || oppSide === 'both' ? oppLevel : 0);
+    setChips('oppBlackChips', oppSide === 'black' || oppSide === 'both' ? oppLevel : 0);
     $('oppWhiteZone').classList.toggle('active', oppSide === 'white' || oppSide === 'both');
     $('oppBlackZone').classList.toggle('active', oppSide === 'black' || oppSide === 'both');
   } else {
@@ -370,11 +412,9 @@ function render(s) {
     $('oppCardLabel').textContent = s.reveal ? '상대 카드 (폴드)' :
       (s.opp && s.opp.sideChosen ? '상대 카드 — 면 선택 완료 🔒' : '상대 카드');
     // 면 비공개: 선택 완료 시 두 존 모두에 반투명 칩 표시
-    const secret = s.opp && s.opp.sideChosen && oppLevel
-      ? chipsHtml(oppLevel).replace(/class="chip /g, 'style="opacity:.35" class="chip ')
-      : '';
-    $('oppWhiteChips').innerHTML = secret;
-    $('oppBlackChips').innerHTML = secret;
+    const secretAmt = s.opp && s.opp.sideChosen ? oppLevel : 0;
+    setChips('oppWhiteChips', secretAmt, true);
+    setChips('oppBlackChips', secretAmt, true);
     $('oppWhiteZone').classList.remove('active');
     $('oppBlackZone').classList.remove('active');
   }
@@ -389,8 +429,11 @@ function render(s) {
     if (s.turn === 'you' && !s.you.side) {
       $('sideActions').classList.remove('hidden');
       $('sideHint').classList.remove('hidden');
+      const maxBet = s.maxInitBet || 1;
+      $('initAmt').max = maxBet;
+      if (Number($('initAmt').value) > maxBet) $('initAmt').value = maxBet;
       $('pickBoth').disabled = s.you.coins < 2;
-      $('status').textContent = '⬇ 내 WHITE / BLACK 존을 클릭해 배팅하세요 (기본 1코인)';
+      $('status').textContent = `⬇ 배팅액을 정하고 내 WHITE / BLACK 존을 클릭하세요 (1~${maxBet}코인)`;
     } else {
       $('status').textContent = s.you.side ? '상대가 면을 선택하는 중...' : '선(상대)이 먼저 선택합니다...';
     }

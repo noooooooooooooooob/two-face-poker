@@ -95,32 +95,48 @@ function startRound(room) {
   broadcast(room);
 }
 
-function chooseSide(room, idx, side) {
+function chooseSide(room, idx, side, amount) {
   const p = room.players[idx];
   if (room.phase !== 'side' || room.turn !== idx || p.side) return;
   if (!['white', 'black', 'both'].includes(side)) return;
-  const cost = ANTE * (side === 'both' ? 2 : 1);
+  const o = room.players[1 - idx];
+  const m = side === 'both' ? 2 : 1;
+  let amt = Math.floor(Number(amount)) || ANTE;
+  amt = Math.max(ANTE, Math.min(amt, Math.floor(p.coins / m), affordableLevel(o)));
+  const cost = amt * m;
   if (p.coins < cost) { send(p.ws, { type: 'error', msg: '코인이 부족합니다.' }); return; }
   p.side = side;
-  p.level = ANTE;
+  p.level = amt;
   p.coins -= cost;
   p.committed += cost;
   room.pot += cost;
-  addLog(room, `${p.name} 면 선택 완료, 기본 배팅 ${cost}코인`);
-  const other = 1 - idx;
-  if (room.players[other].side) {
+  addLog(room, `${p.name} 면 선택 + ${cost}코인 배팅`);
+  if (o.side) {
     room.phase = 'betting';
-    room.turn = room.dealer;
+    // 배팅액이 다르면 적게 건 쪽부터, 같으면 선부터
+    room.turn = p.level === o.level ? room.dealer : (p.level < o.level ? idx : 1 - idx);
   } else {
-    room.turn = other;
+    room.turn = 1 - idx;
   }
   broadcast(room);
 }
 
 function action(room, idx, act, amount) {
-  if (room.phase !== 'betting' || room.turn !== idx) return;
   const p = room.players[idx];
   const o = room.players[1 - idx];
+
+  // 면 선택 단계에서 다이: 기본 배팅 1코인만 내고 포기
+  if (room.phase === 'side') {
+    if (act !== 'fold' || room.turn !== idx || p.side) return;
+    const pay = Math.min(ANTE, p.coins);
+    p.coins -= pay; p.committed += pay; room.pot += pay;
+    addLog(room, `${p.name} 다이 (기본 배팅 ${pay}코인 지불). ${o.name}이(가) 팟 ${room.pot}코인 획득`);
+    o.coins += room.pot;
+    endRound(room, 1 - idx, idx, null);
+    return;
+  }
+
+  if (room.phase !== 'betting' || room.turn !== idx) return;
 
   if (act === 'fold') {
     addLog(room, `${p.name} 폴드. ${o.name}이(가) 팟 ${room.pot}코인 획득`);
@@ -260,9 +276,17 @@ function botAct(room) {
 
   if (room.phase === 'side' && room.turn === 1 && !bot.side) {
     const { white, black } = bot.card;
+    const opp = room.players[0];
+    const best = Math.max(white, black);
+    // 상대가 크게 걸었는데 패가 나쁘면 다이
+    if (opp.level >= 3 && best <= 4 && Math.random() < 0.7) { action(room, 1, 'fold'); return; }
     let side = white >= black ? 'white' : 'black';
     if (Math.min(white, black) >= 7 && bot.coins >= 2 && Math.random() < 0.8) side = 'both';
-    chooseSide(room, 1, side);
+    const v = side === 'both' ? Math.min(white, black) : best;
+    let amt = 1;
+    if (v >= 9 && Math.random() < 0.5) amt = 2 + Math.floor(Math.random() * 2);
+    else if (v >= 7 && Math.random() < 0.3) amt = 2;
+    chooseSide(room, 1, side, amt);
     return;
   }
 
@@ -309,6 +333,7 @@ function broadcast(room, extra = {}) {
       dealer: room.dealer === i ? 'you' : 'opp',
       turn: room.turn === i ? 'you' : 'opp',
       maxRaiseAdd: room.phase === 'betting' ? Math.max(0, maxLevel(room) - Math.max(p.level, o ? o.level : 0)) : 0,
+      maxInitBet: room.phase === 'side' && o ? Math.max(1, Math.min(p.coins, affordableLevel(o))) : 0,
       you: { name: p.name, coins: p.coins, card: p.card, side: p.side, level: p.level, committed: p.committed, ready: p.ready },
       opp: o ? { name: o.name, coins: o.coins, sideChosen: !!o.side, level: o.level, committed: o.committed, ready: o.ready } : null,
       log: room.log,
@@ -363,7 +388,7 @@ wss.on('connection', (ws) => {
     }
 
     if (!room || idx === -1) return;
-    if (m.type === 'side') chooseSide(room, idx, m.side);
+    if (m.type === 'side') chooseSide(room, idx, m.side, m.amount);
     else if (m.type === 'action') action(room, idx, m.action, m.amount);
     else if (m.type === 'next') nextRound(room, idx);
     else if (m.type === 'rematch') rematch(room, idx);
