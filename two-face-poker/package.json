@@ -1,0 +1,12 @@
+{
+  "name": "two-face-poker",
+  "version": "1.0.0",
+  "description": "양면 포커 - 1대1 온라인 웹 게임",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.17.0"
+  }
+}

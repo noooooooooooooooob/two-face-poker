@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: two-face-poker
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>양면 포커</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    background: radial-gradient(ellipse at center, #14532d 0%, #052e16 100%);
+    color: #f1f5f9; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .hidden { display: none !important; }
+  button {
+    cursor: pointer; border: none; border-radius: 10px; padding: 12px 20px;
+    font-size: 15px; font-weight: 700; transition: transform .1s, filter .15s;
+  }
+  button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.15); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  input {
+    padding: 12px; border-radius: 10px; border: 2px solid #334155;
+    background: #0f172a; color: #f1f5f9; font-size: 16px; width: 100%;
+  }
+
+  /* 로비 */
+  #lobby { background: rgba(2,6,23,.75); border-radius: 20px; padding: 36px; width: 380px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  #lobby h1 { font-size: 30px; margin-bottom: 6px; }
+  #lobby .sub { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
+  #lobby .row { margin: 10px 0; }
+  .btn-green { background: #16a34a; color: #fff; width: 100%; }
+  .btn-blue  { background: #2563eb; color: #fff; width: 100%; }
+  #roomInfo { margin-top: 18px; font-size: 15px; color: #fbbf24; }
+  #roomInfo b { font-size: 28px; letter-spacing: 6px; }
+
+  /* 게임 */
+  #game { width: 100%; max-width: 760px; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .player-chip { background: rgba(2,6,23,.6); border-radius: 12px; padding: 8px 16px; font-size: 14px; }
+  .player-chip .coins { color: #fbbf24; font-weight: 800; font-size: 18px; }
+  .dealer-badge { background: #b91c1c; color: #fff; font-size: 11px; border-radius: 6px; padding: 2px 6px; margin-left: 6px; vertical-align: middle; }
+  .turn-glow { box-shadow: 0 0 0 2px #fbbf24; }
+
+  .table {
+    background: rgba(2,6,23,.55); border: 2px solid rgba(255,255,255,.08);
+    border-radius: 20px; padding: 20px; text-align: center;
+  }
+  .pot { font-size: 22px; font-weight: 800; color: #fbbf24; margin-bottom: 4px; }
+  .carry { font-size: 12px; color: #94a3b8; margin-bottom: 10px; }
+  .status { font-size: 15px; min-height: 24px; margin-bottom: 14px; color: #e2e8f0; }
+
+  .cards-area { display: flex; justify-content: center; gap: 40px; margin-bottom: 16px; flex-wrap: wrap; }
+  .card-group { text-align: center; }
+  .card-group .label { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+  .faces { display: flex; gap: 10px; justify-content: center; }
+  .face {
+    width: 78px; height: 110px; border-radius: 12px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-size: 36px; font-weight: 900;
+    border: 3px solid transparent; position: relative;
+  }
+  .face small { font-size: 11px; font-weight: 600; margin-top: 4px; }
+  .face.white { background: #f8fafc; color: #0f172a; }
+  .face.black { background: #111111; color: #f8fafc; border-color: #475569; }
+  .face.back  { background: repeating-linear-gradient(45deg, #7f1d1d, #7f1d1d 8px, #991b1b 8px, #991b1b 16px); color: transparent; }
+  .face.picked { border-color: #fbbf24; box-shadow: 0 0 14px rgba(251,191,36,.7); }
+
+  .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .btn-white { background: #f8fafc; color: #0f172a; }
+  .btn-black { background: #111; color: #fff; border: 1px solid #475569; }
+  .btn-both  { background: linear-gradient(90deg, #f8fafc 50%, #111 50%); color: #16a34a; text-shadow: 0 0 4px #fff; }
+  .btn-call  { background: #16a34a; color: #fff; }
+  .btn-check { background: #0891b2; color: #fff; }
+  .btn-raise { background: #d97706; color: #fff; }
+  .btn-fold  { background: #b91c1c; color: #fff; }
+  #raiseAmt { width: 70px; text-align: center; padding: 10px; }
+
+  .hint { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+
+  #log {
+    margin-top: 14px; background: rgba(2,6,23,.6); border-radius: 12px; padding: 12px;
+    height: 130px; overflow-y: auto; font-size: 13px; text-align: left; color: #cbd5e1;
+  }
+  #log div { padding: 2px 0; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex;
+    align-items: center; justify-content: center; z-index: 10;
+  }
+  .overlay .box { background: #0f172a; border-radius: 16px; padding: 30px 40px; text-align: center; border: 2px solid #334155; }
+  .overlay h2 { margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<!-- 로비 -->
+<div id="lobby">
+  <h1>🂠 양면 포커</h1>
+  <div class="sub">White=짝수 · Black=홀수 · 시작 코인 40개</div>
+  <div class="row"><input id="nameInput" placeholder="닉네임" maxlength="12"></div>
+  <div class="row"><button class="btn-green" id="createBtn">방 만들기</button></div>
+  <div class="row"><button id="aiBtn" style="background:#7c3aed;color:#fff;width:100%">🤖 AI와 대전</button></div>
+  <div class="row" style="display:flex; gap:8px;">
+    <input id="codeInput" placeholder="방 코드 (예: AB12)" maxlength="4" style="text-transform:uppercase">
+    <button class="btn-blue" id="joinBtn" style="width:130px">입장</button>
+  </div>
+  <div id="roomInfo" class="hidden">방 코드: <b id="roomCode"></b><br><span style="font-size:13px;color:#94a3b8">상대에게 코드를 알려주세요. 입장하면 자동 시작!</span></div>
+  <div id="lobbyErr" style="color:#f87171; margin-top:10px; font-size:14px;"></div>
+</div>
+
+<!-- 게임 -->
+<div id="game" class="hidden">
+  <div class="topbar">
+    <div class="player-chip" id="oppChip">
+      <span id="oppName">상대</span><span id="oppDealer" class="dealer-badge hidden">선</span>
+      — <span class="coins" id="oppCoins">40</span>🪙
+      <span id="oppBet" style="color:#94a3b8; font-size:12px;"></span>
+    </div>
+    <div style="font-size:13px; color:#94a3b8;" id="roundLabel"></div>
+    <div class="player-chip" id="myChip">
+      <span id="myName">나</span><span id="myDealer" class="dealer-badge hidden">선</span>
+      — <span class="coins" id="myCoins">40</span>🪙
+      <span id="myBet" style="color:#94a3b8; font-size:12px;"></span>
+    </div>
+  </div>
+
+  <div class="table">
+    <div class="pot">팟 💰 <span id="pot">0</span></div>
+    <div class="carry hidden" id="carryInfo">이월된 팟 포함</div>
+    <div class="status" id="status"></div>
+
+    <div class="cards-area">
+      <div class="card-group">
+        <div class="label" id="oppCardLabel">상대 카드</div>
+        <div class="faces" id="oppFaces">
+          <div class="face back">?</div>
+        </div>
+      </div>
+      <div class="card-group">
+        <div class="label">내 카드</div>
+        <div class="faces" id="myFaces"></div>
+      </div>
+    </div>
+
+    <!-- 면 선택 -->
+    <div class="actions hidden" id="sideActions">
+      <button class="btn-white" id="pickWhite">⚪ White에 배팅</button>
+      <button class="btn-black" id="pickBlack">⚫ Black에 배팅</button>
+      <button class="btn-both" id="pickBoth">⚪⚫ 양면 배팅 (2배 지불)</button>
+    </div>
+    <div class="hint hidden" id="sideHint">양면 배팅: 두 면 모두 상대 숫자를 이기면 팟 + 보너스 10코인! 단, 모든 배팅을 2배로 지불합니다.</div>
+
+    <!-- 배팅 -->
+    <div class="actions hidden" id="betActions">
+      <button class="btn-check" id="checkBtn">체크</button>
+      <button class="btn-call" id="callBtn">콜</button>
+      <input type="number" id="raiseAmt" min="1" value="1">
+      <button class="btn-raise" id="raiseBtn">레이즈</button>
+      <button class="btn-fold" id="foldBtn">폴드</button>
+    </div>
+
+    <!-- 다음 라운드 -->
+    <div class="actions hidden" id="nextActions">
+      <button class="btn-green" id="nextBtn" style="background:#16a34a;color:#fff;">다음 게임 ▶</button>
+    </div>
+
+    <div id="log"></div>
+  </div>
+</div>
+
+<!-- 게임 종료 -->
+<div class="overlay hidden" id="gameoverOverlay">
+  <div class="box">
+    <h2 id="gameoverText"></h2>
+    <button class="btn-green" id="rematchBtn" style="background:#16a34a;color:#fff;">재경기</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ws, myCode = null, lastState = null;
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+  ws.onmessage = e => handle(JSON.parse(e.data));
+  ws.onclose = () => { $('lobbyErr').textContent = '서버 연결이 끊겼습니다. 새로고침 해주세요.'; };
+}
+connect();
+
+$('createBtn').onclick = () => sendMsg({ type: 'create', name: $('nameInput').value || '플레이어1' });
+$('aiBtn').onclick = () => sendMsg({ type: 'createAI', name: $('nameInput').value || '플레이어' });
+$('joinBtn').onclick = () => sendMsg({ type: 'join', code: $('codeInput').value, name: $('nameInput').value || '플레이어2' });
+$('pickWhite').onclick = () => sendMsg({ type: 'side', side: 'white' });
+$('pickBlack').onclick = () => sendMsg({ type: 'side', side: 'black' });
+$('pickBoth').onclick  = () => sendMsg({ type: 'side', side: 'both' });
+$('checkBtn').onclick = () => sendMsg({ type: 'action', action: 'check' });
+$('callBtn').onclick  = () => sendMsg({ type: 'action', action: 'call' });
+$('foldBtn').onclick  = () => sendMsg({ type: 'action', action: 'fold' });
+$('raiseBtn').onclick = () => sendMsg({ type: 'action', action: 'raise', amount: Number($('raiseAmt').value) });
+$('nextBtn').onclick  = () => { sendMsg({ type: 'next' }); $('nextBtn').disabled = true; $('nextBtn').textContent = '상대 기다리는 중...'; };
+$('rematchBtn').onclick = () => { sendMsg({ type: 'rematch' }); $('rematchBtn').disabled = true; $('rematchBtn').textContent = '상대 기다리는 중...'; };
+
+function sendMsg(o) { ws.send(JSON.stringify(o)); }
+
+function handle(m) {
+  if (m.type === 'created') {
+    myCode = m.code;
+    $('roomCode').textContent = m.code;
+    $('roomInfo').classList.remove('hidden');
+    $('createBtn').disabled = true; $('joinBtn').disabled = true;
+    return;
+  }
+  if (m.type === 'joined') return;
+  if (m.type === 'error') {
+    if (!$('lobby').classList.contains('hidden')) $('lobbyErr').textContent = m.msg;
+    else { $('status').textContent = '⚠ ' + m.msg; }
+    return;
+  }
+  if (m.type === 'opponentLeft') {
+    alert('상대가 나갔습니다.');
+    location.reload();
+    return;
+  }
+  if (m.type === 'state') render(m);
+}
+
+function faceHtml(color, num, picked) {
+  return `<div class="face ${color} ${picked ? 'picked' : ''}">${num}<small>${color.toUpperCase()}</small></div>`;
+}
+
+function render(s) {
+  lastState = s;
+  $('lobby').classList.add('hidden');
+  $('game').classList.remove('hidden');
+
+  $('myName').textContent = s.you.name;
+  $('oppName').textContent = s.opp ? s.opp.name : '대기 중';
+  $('myCoins').textContent = s.you.coins;
+  $('oppCoins').textContent = s.opp ? s.opp.coins : '-';
+  $('myBet').textContent = s.you.committed ? ` (배팅 ${s.you.committed})` : '';
+  $('oppBet').textContent = s.opp && s.opp.committed ? ` (배팅 ${s.opp.committed})` : '';
+  $('pot').textContent = s.pot;
+  $('roundLabel').textContent = s.round ? `${s.round}라운드` : '';
+  $('carryInfo').classList.toggle('hidden', !s.carry);
+  if (s.carry) $('carryInfo').textContent = `무승부 이월 팟 ${s.carry}코인이 다음 게임에 추가됩니다`;
+
+  $('myDealer').classList.toggle('hidden', s.dealer !== 'you');
+  $('oppDealer').classList.toggle('hidden', s.dealer !== 'opp');
+  $('myChip').classList.toggle('turn-glow', s.turn === 'you' && (s.phase === 'side' || s.phase === 'betting'));
+  $('oppChip').classList.toggle('turn-glow', s.turn === 'opp' && (s.phase === 'side' || s.phase === 'betting'));
+
+  // 내 카드
+  if (s.you.card) {
+    const side = s.you.side;
+    $('myFaces').innerHTML =
+      faceHtml('white', s.you.card.white, side === 'white' || side === 'both') +
+      faceHtml('black', s.you.card.black, side === 'black' || side === 'both');
+  }
+
+  // 상대 카드
+  if (s.reveal) {
+    const oppR = s.reveal.find(r => r.name !== s.you.name) || s.reveal[1];
+    if (oppR && oppR.side) {
+      $('oppFaces').innerHTML =
+        faceHtml('white', oppR.card.white, oppR.side === 'white' || oppR.side === 'both') +
+        faceHtml('black', oppR.card.black, oppR.side === 'black' || oppR.side === 'both');
+      $('oppCardLabel').textContent = '상대 카드 (공개)';
+    } else {
+      $('oppFaces').innerHTML = '<div class="face back">?</div>';
+      $('oppCardLabel').textContent = '상대 카드 (폴드)';
+    }
+  } else {
+    const chosen = s.opp && s.opp.sideChosen ? ' · 면 선택 완료' : '';
+    $('oppFaces').innerHTML = '<div class="face back">?</div>';
+    $('oppCardLabel').textContent = '상대 카드' + chosen;
+  }
+
+  // 단계별 UI
+  $('sideActions').classList.add('hidden');
+  $('sideHint').classList.add('hidden');
+  $('betActions').classList.add('hidden');
+  $('nextActions').classList.add('hidden');
+
+  if (s.phase === 'side') {
+    if (s.turn === 'you' && !s.you.side) {
+      $('sideActions').classList.remove('hidden');
+      $('sideHint').classList.remove('hidden');
+      $('pickBoth').disabled = s.you.coins < 2;
+      $('status').textContent = '배팅할 면을 선택하세요 (기본 배팅 1코인 자동 지불)';
+    } else {
+      $('status').textContent = s.you.side ? '상대가 면을 선택하는 중...' : '선(상대)이 먼저 선택합니다...';
+    }
+  } else if (s.phase === 'betting') {
+    if (s.turn === 'you') {
+      $('betActions').classList.remove('hidden');
+      const behind = s.you.level < s.opp.level;
+      $('checkBtn').classList.toggle('hidden', behind);
+      $('callBtn').classList.toggle('hidden', !behind);
+      if (behind) $('callBtn').textContent = `콜 (+${(s.opp.level - s.you.level)}${s.you.side === 'both' ? '×2' : ''})`;
+      $('foldBtn').classList.toggle('hidden', !behind);
+      const canRaise = s.maxRaiseAdd >= 1;
+      $('raiseBtn').disabled = !canRaise;
+      $('raiseAmt').disabled = !canRaise;
+      $('raiseAmt').max = s.maxRaiseAdd;
+      if (Number($('raiseAmt').value) > s.maxRaiseAdd) $('raiseAmt').value = Math.max(1, s.maxRaiseAdd);
+      $('status').textContent = behind
+        ? `상대가 레이즈했습니다. 콜 / 레이즈 / 폴드? ${s.you.side === 'both' ? '(양면 배팅: 지불 2배)' : ''}`
+        : `당신 차례입니다. 체크 또는 레이즈 (최대 +${s.maxRaiseAdd})`;
+    } else {
+      $('status').textContent = '상대의 배팅을 기다리는 중...';
+    }
+  } else if (s.phase === 'over') {
+    $('nextActions').classList.remove('hidden');
+    $('nextBtn').disabled = s.you.ready;
+    $('nextBtn').textContent = s.you.ready ? '상대 기다리는 중...' : '다음 게임 ▶';
+    if (s.winner === -1 || s.winner === undefined) $('status').textContent = '라운드 종료';
+    $('status').textContent = '라운드 종료 — 아래 로그를 확인하세요';
+  } else if (s.phase === 'gameover') {
+    const champMsg = s.you.coins > 0 ? '🏆 승리했습니다!' : '😢 패배했습니다...';
+    $('gameoverText').textContent = champMsg;
+    $('gameoverOverlay').classList.remove('hidden');
+    $('rematchBtn').disabled = s.you.ready;
+  } else if (s.phase === 'waiting') {
+    $('status').textContent = '상대 입장 대기 중...';
+  }
+
+  if (s.phase !== 'gameover') $('gameoverOverlay').classList.add('hidden');
+
+  // 로그
+  const log = $('log');
+  log.innerHTML = s.log.map(l => `<div>${l}</div>`).join('');
+  log.scrollTop = log.scrollHeight;
+}
+</script>
+</body>
+</html>
