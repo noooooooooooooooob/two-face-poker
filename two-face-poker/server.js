@@ -338,7 +338,7 @@ function broadcast(room, extra = {}) {
       maxRaiseAdd: room.phase === 'betting' ? Math.max(0, maxLevel(room) - Math.max(p.level, o ? o.level : 0)) : 0,
       maxInitBet: room.phase === 'side' && o ? Math.max(1, Math.min(p.coins, affordableLevel(o))) : 0,
       you: { name: p.name, coins: p.coins, card: p.card, side: p.side, level: p.level, committed: p.committed, ready: p.ready },
-      opp: o ? { name: o.name, coins: o.coins, sideChosen: !!o.side, level: o.level, committed: o.committed, ready: o.ready } : null,
+      opp: o ? { name: o.name, coins: o.coins, sideChosen: !!o.side, level: o.level, committed: o.committed, ready: o.ready, white: o.card ? o.card.white : null } : null,
       log: room.log,
       ...extra,
     });

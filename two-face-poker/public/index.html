@@ -453,9 +453,10 @@ function render(s) {
     $('oppWhiteZone').classList.toggle('active', oppSide === 'white' || oppSide === 'both');
     $('oppBlackZone').classList.toggle('active', oppSide === 'black' || oppSide === 'both');
   } else {
-    $('oppFaces').innerHTML = '<div class="face back">?</div>';
+    // 상대의 흰색 면은 공개, 검은 면은 비공개
+    $('oppFaces').innerHTML = (s.opp && s.opp.white ? faceHtml('white', s.opp.white) : '') + '<div class="face back">?</div>';
     $('oppCardLabel').textContent = s.reveal ? '상대 카드 (폴드)' :
-      (s.opp && s.opp.sideChosen ? '상대 카드 — 면 선택 완료 🔒' : '상대 카드');
+      (s.opp && s.opp.sideChosen ? '상대 카드 — 면 선택 완료 🔒' : '상대 카드 (⚪는 공개)');
     // 면 비공개: 선택 완료 시 두 존 모두에 반투명 칩 표시
     const secretAmt = s.opp && s.opp.sideChosen ? oppLevel : 0;
     setChips('oppWhiteChips', secretAmt, true);
