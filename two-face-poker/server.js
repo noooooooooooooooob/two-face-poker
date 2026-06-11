@@ -131,8 +131,9 @@ function action(room, idx, act, amount) {
     const pay = Math.min(ANTE, p.coins);
     p.coins -= pay; p.committed += pay; room.pot += pay;
     addLog(room, `${p.name} 다이 (기본 배팅 ${pay}코인 지불). ${o.name}이(가) 팟 ${room.pot}코인 획득`);
+    const gain = room.pot;
     o.coins += room.pot;
-    endRound(room, 1 - idx, idx, null);
+    endRound(room, 1 - idx, idx, null, gain);
     return;
   }
 
@@ -140,8 +141,9 @@ function action(room, idx, act, amount) {
 
   if (act === 'fold') {
     addLog(room, `${p.name} 폴드. ${o.name}이(가) 팟 ${room.pot}코인 획득`);
+    const gain = room.pot;
     o.coins += room.pot;
-    endRound(room, 1 - idx, idx, null);
+    endRound(room, 1 - idx, idx, null, gain);
     return;
   }
 
@@ -216,23 +218,23 @@ function showdown(room) {
   if (winner === -1) {
     addLog(room, `무승부! 팟 ${room.pot}코인은 다음 게임으로 이월`);
     room.carry = room.pot;
-    endRound(room, -1, -1, reveal);
+    endRound(room, -1, -1, reveal, 0);
     return;
   }
 
   const w = room.players[winner], l = room.players[1 - winner];
-  w.coins += room.pot;
   let bonus = 0;
   if (bonusWinner === winner) {
     bonus = Math.min(BOTH_BONUS, l.coins);
     l.coins -= bonus;
-    w.coins += bonus;
   }
+  const gain = room.pot + bonus;
+  w.coins += room.pot + bonus;
   addLog(room, `${w.name} 승리! 팟 ${room.pot}코인` + (bonus ? ` + 양면 보너스 ${bonus}코인` : ''));
-  endRound(room, winner, 1 - winner, reveal);
+  endRound(room, winner, 1 - winner, reveal, gain);
 }
 
-function endRound(room, winner, loser, reveal) {
+function endRound(room, winner, loser, reveal, gain) {
   room.pot = 0;
   if (loser !== -1) room.dealer = loser; // 진 사람이 다음 선
   room.phase = 'over';
@@ -243,10 +245,10 @@ function endRound(room, winner, loser, reveal) {
     room.phase = 'gameover';
     const champ = room.players[1 - broke];
     addLog(room, `🏆 ${champ.name} 최종 승리! (${room.players[broke].name} 코인 소진)`);
-    broadcast(room, { reveal, winner, gameWinner: 1 - broke });
+    broadcast(room, { reveal, winner, gain, gameWinner: 1 - broke });
     return;
   }
-  broadcast(room, { reveal, winner });
+  broadcast(room, { reveal, winner, gain });
 }
 
 function nextRound(room, idx) {
@@ -326,6 +328,7 @@ function broadcast(room, extra = {}) {
     const o = room.players[1 - i];
     send(p.ws, {
       type: 'state',
+      youIdx: i,
       phase: room.phase,
       round: room.round,
       pot: room.pot,

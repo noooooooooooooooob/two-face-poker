@@ -52,7 +52,40 @@
     padding: 14px 18px;
     box-shadow: inset 0 0 50px rgba(0,0,0,.55), 0 14px 40px rgba(0,0,0,.6);
     display: flex; flex-direction: column; gap: 8px;
+    position: relative;
   }
+
+  /* 라운드 결과 배너 */
+  #resultBanner {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    z-index: 5; pointer-events: none;
+    padding: 18px 42px; border-radius: 18px; text-align: center;
+    font-size: 30px; font-weight: 900; white-space: nowrap;
+    text-shadow: 0 2px 8px rgba(0,0,0,.6);
+    animation: bannerIn .55s cubic-bezier(.2,1.2,.4,1) backwards;
+  }
+  #resultBanner .sub { font-size: 15px; font-weight: 700; margin-top: 6px; }
+  #resultBanner.win {
+    background: linear-gradient(135deg, rgba(180,130,10,.95), rgba(120,80,5,.95));
+    border: 3px solid #fbbf24; color: #fef3c7;
+    box-shadow: 0 0 40px rgba(251,191,36,.55);
+  }
+  #resultBanner.lose {
+    background: rgba(30,41,59,.95);
+    border: 3px solid #64748b; color: #cbd5e1;
+    box-shadow: 0 0 30px rgba(0,0,0,.6);
+  }
+  #resultBanner.draw {
+    background: rgba(8,51,68,.95);
+    border: 3px solid #22d3ee; color: #cffafe;
+    box-shadow: 0 0 30px rgba(34,211,238,.4);
+  }
+  @keyframes bannerIn {
+    0%   { transform: translate(-50%, -50%) scale(.3); opacity: 0; }
+    70%  { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  .player-chipbar.winner-glow { box-shadow: 0 0 0 2px #fbbf24, 0 0 18px rgba(251,191,36,.7); }
 
   .cards-row { display: flex; justify-content: center; gap: 10px; min-height: 96px; align-items: center; }
   .row-label { font-size: 11px; color: rgba(255,255,255,.45); text-align: center; letter-spacing: 2px; }
@@ -234,6 +267,9 @@
     <!-- 내 카드 -->
     <div class="cards-row" id="myFaces"></div>
     <div class="row-label">내 카드</div>
+
+    <!-- 라운드 결과 배너 -->
+    <div id="resultBanner" class="hidden"></div>
   </div>
 
   <!-- 면 선택 보조 -->
@@ -346,9 +382,18 @@ function setChips(elId, amount, ghost) {
 }
 
 let prevRound = 0;
+let savedResult = null; // 라운드 결과 유지 (상대 준비 갱신 때 사라지지 않도록)
 function render(s) {
   lastState = s;
   if (s.round !== prevRound) { for (const k in prevAmts) prevAmts[k] = 0; prevRound = s.round; }
+
+  if (s.phase === 'over' || s.phase === 'gameover') {
+    if (s.reveal !== undefined && s.winner !== undefined) savedResult = { reveal: s.reveal, winner: s.winner, gain: s.gain };
+    else if (savedResult) { s.reveal = savedResult.reveal; s.winner = savedResult.winner; s.gain = savedResult.gain; }
+  } else {
+    savedResult = null;
+  }
+
   $('lobby').classList.add('hidden');
   $('game').classList.remove('hidden');
 
@@ -460,7 +505,7 @@ function render(s) {
     $('nextActions').classList.remove('hidden');
     $('nextBtn').disabled = s.you.ready;
     $('nextBtn').textContent = s.you.ready ? '상대 기다리는 중...' : '다음 게임 ▶';
-    $('status').textContent = '라운드 종료 — 아래 로그를 확인하세요';
+    $('status').textContent = '라운드 종료';
   } else if (s.phase === 'gameover') {
     $('gameoverText').textContent = s.you.coins > 0 ? '🏆 승리했습니다!' : '😢 패배했습니다...';
     $('gameoverOverlay').classList.remove('hidden');
@@ -470,6 +515,28 @@ function render(s) {
   }
 
   if (s.phase !== 'gameover') $('gameoverOverlay').classList.add('hidden');
+
+  // ----- 결과 배너 -----
+  const banner = $('resultBanner');
+  $('myChip').classList.remove('winner-glow');
+  $('oppChip').classList.remove('winner-glow');
+  if ((s.phase === 'over' || s.phase === 'gameover') && s.winner !== undefined) {
+    banner.classList.remove('hidden', 'win', 'lose', 'draw');
+    if (s.winner === -1) {
+      banner.classList.add('draw');
+      banner.innerHTML = `🔵 무승부<div class="sub">팟은 다음 게임으로 이월됩니다</div>`;
+    } else if (s.winner === s.youIdx) {
+      banner.classList.add('win');
+      banner.innerHTML = `🏆 승리!<div class="sub">+${s.gain || 0}코인 획득</div>`;
+      $('myChip').classList.add('winner-glow');
+    } else {
+      banner.classList.add('lose');
+      banner.innerHTML = `패배...<div class="sub">${s.opp.name}이(가) ${s.gain || 0}코인 획득</div>`;
+      $('oppChip').classList.add('winner-glow');
+    }
+  } else {
+    banner.classList.add('hidden');
+  }
 
   const log = $('log');
   log.innerHTML = s.log.map(l => `<div>${l}</div>`).join('');
