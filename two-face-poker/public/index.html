@@ -3,546 +3,93 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>양면 포커</title>
+<title>🎮 미니게임</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
     background: #0b1120;
     color: #f1f5f9; min-height: 100vh;
-    display: flex; align-items: center; justify-content: center; padding: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; gap: 28px;
   }
-  .hidden { display: none !important; }
-  button {
-    cursor: pointer; border: none; border-radius: 10px; padding: 11px 18px;
-    font-size: 15px; font-weight: 700; transition: transform .1s, filter .15s;
+  header { text-align: center; }
+  header h1 { font-size: 34px; }
+  header .sub { color: #94a3b8; font-size: 14px; margin-top: 6px; }
+
+  #games {
+    display: grid; gap: 18px; width: 100%; max-width: 860px;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   }
-  button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.15); }
-  button:disabled { opacity: .4; cursor: not-allowed; }
-  input {
-    padding: 12px; border-radius: 10px; border: 2px solid #334155;
-    background: #0f172a; color: #f1f5f9; font-size: 16px; width: 100%;
+  .card {
+    background: rgba(15,23,42,.9);
+    border: 1px solid #1e293b; border-radius: 18px;
+    padding: 24px 20px; text-align: center; text-decoration: none; color: inherit;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    transition: transform .15s, border-color .15s, box-shadow .15s;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: #fbbf24;
+    box-shadow: 0 12px 30px rgba(0,0,0,.45), 0 0 18px rgba(251,191,36,.15);
+  }
+  .card .emoji { font-size: 46px; }
+  .card .name { font-size: 19px; font-weight: 800; }
+  .card .desc { font-size: 13px; color: #94a3b8; line-height: 1.5; }
+  .card .play {
+    margin-top: 6px; background: #16a34a; color: #fff;
+    border-radius: 10px; padding: 8px 22px; font-size: 14px; font-weight: 700;
   }
 
-  /* ---------- 로비 ---------- */
-  #lobby { background: rgba(2,6,23,.85); border-radius: 20px; padding: 36px; width: 380px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
-  #lobby h1 { font-size: 30px; margin-bottom: 6px; }
-  #lobby .sub { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
-  #lobby .row { margin: 10px 0; }
-  .btn-green { background: #16a34a; color: #fff; width: 100%; }
-  .btn-blue  { background: #2563eb; color: #fff; width: 100%; }
-  #roomInfo { margin-top: 18px; font-size: 15px; color: #fbbf24; }
-  #roomInfo b { font-size: 28px; letter-spacing: 6px; }
+  .card.soon { opacity: .45; cursor: default; }
+  .card.soon:hover { transform: none; border-color: #1e293b; box-shadow: none; }
+  .card.soon .play { background: #334155; }
 
-  /* ---------- 게임 ---------- */
-  #game { width: 100%; max-width: 660px; }
-  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-  .player-chipbar { background: rgba(15,23,42,.9); border-radius: 12px; padding: 7px 14px; font-size: 14px; border: 1px solid #1e293b; }
-  .player-chipbar .coins { color: #fbbf24; font-weight: 800; font-size: 17px; }
-  .dealer-badge { background: #b91c1c; color: #fff; font-size: 11px; border-radius: 6px; padding: 2px 6px; margin-left: 6px; vertical-align: middle; }
-  .turn-glow { box-shadow: 0 0 0 2px #fbbf24; }
-
-  /* 포커 판 */
-  .board {
-    background:
-      radial-gradient(ellipse at 50% 35%, #1d6f42 0%, #14532d 60%, #0c3b20 100%);
-    border: 10px solid #5b3a1e;
-    outline: 3px solid #3c2613;
-    border-radius: 26px;
-    padding: 14px 18px;
-    box-shadow: inset 0 0 50px rgba(0,0,0,.55), 0 14px 40px rgba(0,0,0,.6);
-    display: flex; flex-direction: column; gap: 8px;
-    position: relative;
-  }
-
-  /* 라운드 결과 배너 */
-  #resultBanner {
-    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    z-index: 5; pointer-events: none;
-    padding: 18px 42px; border-radius: 18px; text-align: center;
-    font-size: 30px; font-weight: 900; white-space: nowrap;
-    text-shadow: 0 2px 8px rgba(0,0,0,.6);
-    animation: bannerIn .55s cubic-bezier(.2,1.2,.4,1) backwards;
-  }
-  #resultBanner .sub { font-size: 15px; font-weight: 700; margin-top: 6px; }
-  #resultBanner.win {
-    background: linear-gradient(135deg, rgba(180,130,10,.95), rgba(120,80,5,.95));
-    border: 3px solid #fbbf24; color: #fef3c7;
-    box-shadow: 0 0 40px rgba(251,191,36,.55);
-  }
-  #resultBanner.lose {
-    background: rgba(30,41,59,.95);
-    border: 3px solid #64748b; color: #cbd5e1;
-    box-shadow: 0 0 30px rgba(0,0,0,.6);
-  }
-  #resultBanner.draw {
-    background: rgba(8,51,68,.95);
-    border: 3px solid #22d3ee; color: #cffafe;
-    box-shadow: 0 0 30px rgba(34,211,238,.4);
-  }
-  @keyframes bannerIn {
-    0%   { transform: translate(-50%, -50%) scale(.3); opacity: 0; }
-    70%  { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
-    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-  }
-  .player-chipbar.winner-glow { box-shadow: 0 0 0 2px #fbbf24, 0 0 18px rgba(251,191,36,.7); }
-
-  .cards-row { display: flex; justify-content: center; gap: 10px; min-height: 96px; align-items: center; }
-  .row-label { font-size: 11px; color: rgba(255,255,255,.45); text-align: center; letter-spacing: 2px; }
-
-  .face {
-    width: 66px; height: 92px; border-radius: 10px; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; font-size: 30px; font-weight: 900;
-    border: 3px solid transparent; box-shadow: 0 4px 10px rgba(0,0,0,.45);
-  }
-  .face small { font-size: 10px; font-weight: 700; margin-top: 3px; letter-spacing: 1px; }
-  .face.white { background: #f8fafc; color: #0f172a; }
-  .face.black { background: #141414; color: #f8fafc; border-color: #3f3f46; }
-  .face.back  { background: repeating-linear-gradient(45deg, #7f1d1d, #7f1d1d 7px, #991b1b 7px, #991b1b 14px); color: transparent; border-color: #450a0a; }
-  .face.picked { border-color: #fbbf24; box-shadow: 0 0 16px rgba(251,191,36,.8); }
-  .face.dim { opacity: .45; }
-
-  /* 배팅 존 */
-  .zones { display: flex; justify-content: center; gap: 14px; }
-  .zone {
-    flex: 1; max-width: 220px; min-height: 74px; border-radius: 14px;
-    border: 2px dashed rgba(255,255,255,.35);
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    padding: 6px; position: relative; transition: background .15s, border-color .15s;
-  }
-  .zone .zlabel { font-size: 11px; font-weight: 800; letter-spacing: 2px; }
-  .zone.white-zone .zlabel { color: #f8fafc; }
-  .zone.black-zone .zlabel { color: #a1a1aa; }
-  .zone.clickable { cursor: pointer; border-color: #fbbf24; background: rgba(251,191,36,.08); }
-  .zone.clickable:hover { background: rgba(251,191,36,.22); }
-  .zone.active { border-style: solid; border-color: #fbbf24; background: rgba(251,191,36,.1); }
-  .zone.secret { border-color: rgba(255,255,255,.25); }
-
-  /* 중앙 공통 팟 */
-  .pot-area {
-    display: flex; align-items: center; justify-content: center; gap: 16px;
-    background: rgba(0,0,0,.28); border-radius: 16px; padding: 8px 14px;
-    border: 1px solid rgba(255,255,255,.12); min-height: 64px;
-  }
-  .pot-text { text-align: center; }
-  .pot-text .amt { font-size: 20px; font-weight: 900; color: #fbbf24; }
-  .pot-text .carry { font-size: 11px; color: #94a3b8; }
-
-  /* 칩 */
-  .chips { display: flex; align-items: flex-end; height: 34px; }
-  .chip {
-    width: 26px; height: 26px; border-radius: 50%;
-    border: 3px dashed rgba(255,255,255,.85);
-    box-shadow: 0 2px 0 rgba(0,0,0,.45), inset 0 0 0 3px rgba(0,0,0,.18);
-    margin-left: -16px; flex-shrink: 0;
-  }
-  .chip:first-child { margin-left: 0; }
-  .chip.c1  { background: #dc2626; }                /* 1코인 = 빨강 */
-  .chip.c5  { background: #2563eb; }                /* 5코인 = 파랑 */
-  .chip.c10 { background: #111; border-color: #fbbf24; } /* 10코인 = 검정/금 */
-  .chip-amt { font-size: 13px; font-weight: 800; color: #fde68a; margin-left: 8px; align-self: center; }
-  .chip.ghost { opacity: .35; }
-
-  /* 칩 배팅 애니메이션 */
-  @keyframes chipIn {
-    0%   { transform: translateY(-52px) scale(.3); opacity: 0; }
-    60%  { transform: translateY(4px) scale(1.1); opacity: 1; }
-    100% { transform: translateY(0) scale(1); opacity: 1; }
-  }
-  @keyframes chipInGhost {
-    0%   { transform: translateY(-52px) scale(.3); opacity: 0; }
-    60%  { transform: translateY(4px) scale(1.1); opacity: .35; }
-    100% { transform: translateY(0) scale(1); opacity: .35; }
-  }
-  .chip.anim { animation: chipIn .5s cubic-bezier(.25,.9,.35,1.25) backwards; }
-  .chip.ghost.anim { animation-name: chipInGhost; }
-  @keyframes potPulse {
-    0% { box-shadow: 0 0 0 0 rgba(251,191,36,.6); }
-    100% { box-shadow: 0 0 0 18px rgba(251,191,36,0); }
-  }
-  .pot-area.pulse { animation: potPulse .6s ease-out; }
-
-  .status { text-align: center; font-size: 14px; min-height: 20px; color: #fef3c7; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
-
-  /* 액션 버튼 */
-  .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
-  .btn-both  { background: linear-gradient(90deg, #f8fafc 50%, #111 50%); color: #16a34a; text-shadow: 0 0 4px #fff; }
-  .btn-call  { background: #16a34a; color: #fff; }
-  .btn-check { background: #0891b2; color: #fff; }
-  .btn-raise { background: #d97706; color: #fff; }
-  .btn-fold  { background: #b91c1c; color: #fff; }
-  #raiseAmt { width: 64px; text-align: center; padding: 9px; }
-  .hint { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 6px; }
-
-  #log {
-    margin-top: 10px; background: rgba(2,6,23,.7); border-radius: 12px; padding: 10px 12px;
-    height: 110px; overflow-y: auto; font-size: 13px; color: #cbd5e1; border: 1px solid #1e293b;
-  }
-  #log div { padding: 1px 0; }
-
-  .overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex;
-    align-items: center; justify-content: center; z-index: 10;
-  }
-  .overlay .box { background: #0f172a; border-radius: 16px; padding: 30px 40px; text-align: center; border: 2px solid #334155; }
-  .overlay h2 { margin-bottom: 16px; }
-
-  @media (max-width: 480px) {
-    .face { width: 54px; height: 76px; font-size: 24px; }
-    .zone { min-height: 64px; }
-  }
+  footer { color: #475569; font-size: 12px; }
 </style>
 </head>
 <body>
 
-<!-- 로비 -->
-<div id="lobby">
-  <h1>🂠 양면 포커</h1>
-  <div class="sub">White=짝수 · Black=홀수 · 시작 코인 40개</div>
-  <div class="row"><input id="nameInput" placeholder="닉네임" maxlength="12"></div>
-  <div class="row"><button class="btn-green" id="createBtn">방 만들기</button></div>
-  <div class="row"><button id="aiBtn" style="background:#7c3aed;color:#fff;width:100%">🤖 AI와 대전</button></div>
-  <div class="row" style="display:flex; gap:8px;">
-    <input id="codeInput" placeholder="방 코드 (예: AB12)" maxlength="4" style="text-transform:uppercase">
-    <button class="btn-blue" id="joinBtn" style="width:130px">입장</button>
-  </div>
-  <div id="roomInfo" class="hidden">방 코드: <b id="roomCode"></b><br><span style="font-size:13px;color:#94a3b8">상대에게 코드를 알려주세요. 입장하면 자동 시작!</span></div>
-  <div id="lobbyErr" style="color:#f87171; margin-top:10px; font-size:14px;"></div>
-</div>
+<header>
+  <h1>🎮 미니게임</h1>
+  <div class="sub">친구와 함께 즐기는 1:1 온라인 게임 모음</div>
+</header>
 
-<!-- 게임 -->
-<div id="game" class="hidden">
-  <div class="topbar">
-    <div class="player-chipbar" id="oppChip">
-      <span id="oppName">상대</span><span id="oppDealer" class="dealer-badge hidden">선</span>
-      — <span class="coins" id="oppCoins">40</span>🪙
-    </div>
-    <div style="font-size:13px; color:#94a3b8;" id="roundLabel"></div>
-    <div class="player-chipbar" id="myChip">
-      <span id="myName">나</span><span id="myDealer" class="dealer-badge hidden">선</span>
-      — <span class="coins" id="myCoins">40</span>🪙
-    </div>
-  </div>
+<div id="games"></div>
 
-  <div class="board">
-    <!-- 상대 카드 -->
-    <div class="row-label" id="oppCardLabel">상대 카드</div>
-    <div class="cards-row" id="oppFaces"></div>
-
-    <!-- 상대 배팅 존 -->
-    <div class="zones">
-      <div class="zone white-zone secret" id="oppWhiteZone">
-        <div class="zlabel">⚪ WHITE</div>
-        <div class="chips" id="oppWhiteChips"></div>
-      </div>
-      <div class="zone black-zone secret" id="oppBlackZone">
-        <div class="zlabel">⚫ BLACK</div>
-        <div class="chips" id="oppBlackChips"></div>
-      </div>
-    </div>
-
-    <!-- 중앙 공통 팟 -->
-    <div class="pot-area">
-      <div class="chips" id="potChips"></div>
-      <div class="pot-text">
-        <div class="amt">팟 💰 <span id="pot">0</span></div>
-        <div class="carry hidden" id="carryInfo"></div>
-      </div>
-    </div>
-
-    <div class="status" id="status"></div>
-
-    <!-- 내 배팅 존 -->
-    <div class="zones">
-      <div class="zone white-zone" id="myWhiteZone">
-        <div class="zlabel">⚪ WHITE</div>
-        <div class="chips" id="myWhiteChips"></div>
-      </div>
-      <div class="zone black-zone" id="myBlackZone">
-        <div class="zlabel">⚫ BLACK</div>
-        <div class="chips" id="myBlackChips"></div>
-      </div>
-    </div>
-
-    <!-- 내 카드 -->
-    <div class="cards-row" id="myFaces"></div>
-    <div class="row-label">내 카드</div>
-
-    <!-- 라운드 결과 배너 -->
-    <div id="resultBanner" class="hidden"></div>
-  </div>
-
-  <!-- 면 선택 보조 -->
-  <div class="actions hidden" id="sideActions">
-    <span style="align-self:center;font-size:13px;color:#94a3b8">배팅액</span>
-    <input type="number" id="initAmt" min="1" value="1" style="width:64px;text-align:center;padding:9px">
-    <button class="btn-both" id="pickBoth">⚪⚫ 양면 배팅 (2배 지불)</button>
-    <button class="btn-fold" id="sideFoldBtn">다이 (1코인)</button>
-  </div>
-  <div class="hint hidden" id="sideHint">배팅액을 정하고 내 WHITE / BLACK 존을 클릭하세요. 양면 배팅: 두 면 모두 이기면 팟 + 보너스 10코인, 단 모든 지불 2배! 다이하면 1코인만 잃고 포기합니다.</div>
-
-  <!-- 배팅 액션 -->
-  <div class="actions hidden" id="betActions">
-    <button class="btn-check" id="checkBtn">체크</button>
-    <button class="btn-call" id="callBtn">콜</button>
-    <input type="number" id="raiseAmt" min="1" value="1">
-    <button class="btn-raise" id="raiseBtn">레이즈</button>
-    <button class="btn-fold" id="foldBtn">폴드</button>
-  </div>
-
-  <!-- 다음 라운드 -->
-  <div class="actions hidden" id="nextActions">
-    <button id="nextBtn" style="background:#16a34a;color:#fff;">다음 게임 ▶</button>
-  </div>
-
-  <div id="log"></div>
-</div>
-
-<!-- 게임 종료 -->
-<div class="overlay hidden" id="gameoverOverlay">
-  <div class="box">
-    <h2 id="gameoverText"></h2>
-    <button id="rematchBtn" style="background:#16a34a;color:#fff;">재경기</button>
-  </div>
-</div>
+<footer>새 게임이 계속 추가됩니다!</footer>
 
 <script>
-const $ = id => document.getElementById(id);
-let ws, lastState = null;
+// ===== 게임 목록 — 새 게임을 만들면 여기에 한 줄만 추가하세요 =====
+// { emoji, name, desc, url } — url은 public/ 아래 게임 폴더 경로
+const GAMES = [
+  {
+    emoji: '🂠',
+    name: '양면 포커',
+    desc: 'White=짝수, Black=홀수. 한 면을 골라 배팅하는 1:1 심리전 카드 게임',
+    url: 'poker/',
+  },
+];
 
-function connect() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}`);
-  ws.onmessage = e => handle(JSON.parse(e.data));
-  ws.onclose = () => { $('lobbyErr').textContent = '서버 연결이 끊겼습니다. 새로고침 해주세요.'; };
-}
-connect();
+// "준비 중" 자리표시 카드 개수
+const COMING_SOON = 2;
 
-$('createBtn').onclick = () => sendMsg({ type: 'create', name: $('nameInput').value || '플레이어1' });
-$('aiBtn').onclick = () => sendMsg({ type: 'createAI', name: $('nameInput').value || '플레이어' });
-$('joinBtn').onclick = () => sendMsg({ type: 'join', code: $('codeInput').value, name: $('nameInput').value || '플레이어2' });
-function initAmt() { return Math.max(1, Math.floor(Number($('initAmt').value)) || 1); }
-$('pickBoth').onclick  = () => sendMsg({ type: 'side', side: 'both', amount: initAmt() });
-$('sideFoldBtn').onclick = () => { if (canPick()) sendMsg({ type: 'action', action: 'fold' }); };
-$('myWhiteZone').onclick = () => { if (canPick()) sendMsg({ type: 'side', side: 'white', amount: initAmt() }); };
-$('myBlackZone').onclick = () => { if (canPick()) sendMsg({ type: 'side', side: 'black', amount: initAmt() }); };
-$('checkBtn').onclick = () => sendMsg({ type: 'action', action: 'check' });
-$('callBtn').onclick  = () => sendMsg({ type: 'action', action: 'call' });
-$('foldBtn').onclick  = () => sendMsg({ type: 'action', action: 'fold' });
-$('raiseBtn').onclick = () => sendMsg({ type: 'action', action: 'raise', amount: Number($('raiseAmt').value) });
-$('nextBtn').onclick  = () => { sendMsg({ type: 'next' }); $('nextBtn').disabled = true; $('nextBtn').textContent = '상대 기다리는 중...'; };
-$('rematchBtn').onclick = () => { sendMsg({ type: 'rematch' }); $('rematchBtn').disabled = true; $('rematchBtn').textContent = '상대 기다리는 중...'; };
-
-function sendMsg(o) { ws.send(JSON.stringify(o)); }
-function canPick() { return lastState && lastState.phase === 'side' && lastState.turn === 'you' && !lastState.you.side; }
-
-function handle(m) {
-  if (m.type === 'created') {
-    $('roomCode').textContent = m.code;
-    $('roomInfo').classList.remove('hidden');
-    $('createBtn').disabled = true; $('joinBtn').disabled = true; $('aiBtn').disabled = true;
-    return;
-  }
-  if (m.type === 'joined') return;
-  if (m.type === 'error') {
-    if (!$('lobby').classList.contains('hidden')) $('lobbyErr').textContent = m.msg;
-    else $('status').textContent = '⚠ ' + m.msg;
-    return;
-  }
-  if (m.type === 'opponentLeft') { alert('상대가 나갔습니다.'); location.reload(); return; }
-  if (m.type === 'state') render(m);
-}
-
-// ---------- 렌더링 ----------
-function faceHtml(color, num, cls = '') {
-  return `<div class="face ${color} ${cls}">${num}<small>${color.toUpperCase()}</small></div>`;
-}
-
-// 코인 금액 → 칩 이미지 (10=검정금, 5=파랑, 1=빨강)
-function chipsHtml(amount, animate, ghost) {
-  if (!amount) return '';
-  let html = '', a = amount, n = 0;
-  const add = c => {
-    if (n < 9) html += `<div class="chip ${c}${ghost ? ' ghost' : ''}${animate ? ' anim' : ''}" style="animation-delay:${n * .07}s"></div>`;
-    n++;
-  };
-  while (a >= 10) { add('c10'); a -= 10; }
-  while (a >= 5)  { add('c5');  a -= 5; }
-  while (a >= 1)  { add('c1');  a -= 1; }
-  return html + `<span class="chip-amt">${amount}</span>`;
-}
-
-// 이전 금액 기억해서 늘어났을 때만 애니메이션
-const prevAmts = {};
-function setChips(elId, amount, ghost) {
-  const animate = amount > (prevAmts[elId] || 0);
-  $(elId).innerHTML = chipsHtml(amount, animate, ghost);
-  prevAmts[elId] = amount;
-  return animate;
-}
-
-let prevRound = 0;
-let savedResult = null; // 라운드 결과 유지 (상대 준비 갱신 때 사라지지 않도록)
-function render(s) {
-  lastState = s;
-  if (s.round !== prevRound) { for (const k in prevAmts) prevAmts[k] = 0; prevRound = s.round; }
-
-  if (s.phase === 'over' || s.phase === 'gameover') {
-    if (s.reveal !== undefined && s.winner !== undefined) savedResult = { reveal: s.reveal, winner: s.winner, gain: s.gain };
-    else if (savedResult) { s.reveal = savedResult.reveal; s.winner = savedResult.winner; s.gain = savedResult.gain; }
-  } else {
-    savedResult = null;
-  }
-
-  $('lobby').classList.add('hidden');
-  $('game').classList.remove('hidden');
-
-  $('myName').textContent = s.you.name;
-  $('oppName').textContent = s.opp ? s.opp.name : '대기 중';
-  $('myCoins').textContent = s.you.coins;
-  $('oppCoins').textContent = s.opp ? s.opp.coins : '-';
-  $('pot').textContent = s.pot;
-  $('roundLabel').textContent = s.round ? `${s.round}라운드` : '';
-  if (setChips('potChips', s.pot)) {
-    const pa = document.querySelector('.pot-area');
-    pa.classList.remove('pulse'); void pa.offsetWidth; pa.classList.add('pulse');
-  }
-  $('carryInfo').classList.toggle('hidden', !s.carry);
-  if (s.carry) $('carryInfo').textContent = `무승부 이월 ${s.carry}코인 포함 예정`;
-
-  $('myDealer').classList.toggle('hidden', s.dealer !== 'you');
-  $('oppDealer').classList.toggle('hidden', s.dealer !== 'opp');
-  const acting = s.phase === 'side' || s.phase === 'betting';
-  $('myChip').classList.toggle('turn-glow', acting && s.turn === 'you');
-  $('oppChip').classList.toggle('turn-glow', acting && s.turn === 'opp');
-
-  // ----- 내 카드 -----
-  if (s.you.card) {
-    const side = s.you.side;
-    const wCls = side === 'white' || side === 'both' ? 'picked' : (side ? 'dim' : '');
-    const bCls = side === 'black' || side === 'both' ? 'picked' : (side ? 'dim' : '');
-    $('myFaces').innerHTML = faceHtml('white', s.you.card.white, wCls) + faceHtml('black', s.you.card.black, bCls);
-  }
-
-  // ----- 내 배팅 존 칩 -----
-  const myLevel = s.you.level || 0;
-  const mySide = s.you.side;
-  setChips('myWhiteChips', mySide === 'white' || mySide === 'both' ? myLevel : 0);
-  setChips('myBlackChips', mySide === 'black' || mySide === 'both' ? myLevel : 0);
-  $('myWhiteZone').classList.toggle('active', mySide === 'white' || mySide === 'both');
-  $('myBlackZone').classList.toggle('active', mySide === 'black' || mySide === 'both');
-  const pickable = canPick();
-  $('myWhiteZone').classList.toggle('clickable', pickable);
-  $('myBlackZone').classList.toggle('clickable', pickable);
-
-  // ----- 상대 카드 / 배팅 존 -----
-  let oppSide = null, oppReveal = null;
-  if (s.reveal) {
-    oppReveal = s.reveal.find(r => r.name !== s.you.name) || s.reveal[1];
-    if (oppReveal) oppSide = oppReveal.side;
-  }
-  const oppLevel = s.opp ? (s.opp.level || 0) : 0;
-
-  if (oppReveal && oppSide) {
-    const wCls = oppSide === 'white' || oppSide === 'both' ? 'picked' : 'dim';
-    const bCls = oppSide === 'black' || oppSide === 'both' ? 'picked' : 'dim';
-    $('oppFaces').innerHTML = faceHtml('white', oppReveal.card.white, wCls) + faceHtml('black', oppReveal.card.black, bCls);
-    $('oppCardLabel').textContent = '상대 카드 (공개)';
-    setChips('oppWhiteChips', oppSide === 'white' || oppSide === 'both' ? oppLevel : 0);
-    setChips('oppBlackChips', oppSide === 'black' || oppSide === 'both' ? oppLevel : 0);
-    $('oppWhiteZone').classList.toggle('active', oppSide === 'white' || oppSide === 'both');
-    $('oppBlackZone').classList.toggle('active', oppSide === 'black' || oppSide === 'both');
-  } else {
-    // 상대의 흰색 면은 공개, 검은 면은 비공개
-    $('oppFaces').innerHTML = (s.opp && s.opp.white ? faceHtml('white', s.opp.white) : '') + '<div class="face back">?</div>';
-    $('oppCardLabel').textContent = s.reveal ? '상대 카드 (폴드)' :
-      (s.opp && s.opp.sideChosen ? '상대 카드 — 면 선택 완료 🔒' : '상대 카드 (⚪는 공개)');
-    // 면 비공개: 선택 완료 시 두 존 모두에 반투명 칩 표시
-    const secretAmt = s.opp && s.opp.sideChosen ? oppLevel : 0;
-    setChips('oppWhiteChips', secretAmt, true);
-    setChips('oppBlackChips', secretAmt, true);
-    $('oppWhiteZone').classList.remove('active');
-    $('oppBlackZone').classList.remove('active');
-  }
-
-  // ----- 단계별 UI -----
-  $('sideActions').classList.add('hidden');
-  $('sideHint').classList.add('hidden');
-  $('betActions').classList.add('hidden');
-  $('nextActions').classList.add('hidden');
-
-  if (s.phase === 'side') {
-    if (s.turn === 'you' && !s.you.side) {
-      $('sideActions').classList.remove('hidden');
-      $('sideHint').classList.remove('hidden');
-      const maxBet = s.maxInitBet || 1;
-      $('initAmt').max = maxBet;
-      if (Number($('initAmt').value) > maxBet) $('initAmt').value = maxBet;
-      $('pickBoth').disabled = s.you.coins < 2;
-      $('status').textContent = `⬇ 배팅액을 정하고 내 WHITE / BLACK 존을 클릭하세요 (1~${maxBet}코인)`;
-    } else {
-      $('status').textContent = s.you.side ? '상대가 면을 선택하는 중...' : '선(상대)이 먼저 선택합니다...';
-    }
-  } else if (s.phase === 'betting') {
-    if (s.turn === 'you') {
-      $('betActions').classList.remove('hidden');
-      const behind = s.you.level < s.opp.level;
-      $('checkBtn').classList.toggle('hidden', behind);
-      $('callBtn').classList.toggle('hidden', !behind);
-      if (behind) $('callBtn').textContent = `콜 (+${s.opp.level - s.you.level}${s.you.side === 'both' ? '×2' : ''})`;
-      $('foldBtn').classList.toggle('hidden', !behind);
-      const canRaise = s.maxRaiseAdd >= 1;
-      $('raiseBtn').disabled = !canRaise;
-      $('raiseAmt').disabled = !canRaise;
-      $('raiseAmt').max = s.maxRaiseAdd;
-      if (Number($('raiseAmt').value) > s.maxRaiseAdd) $('raiseAmt').value = Math.max(1, s.maxRaiseAdd);
-      $('status').textContent = behind
-        ? `상대가 레이즈! 콜 / 레이즈 / 폴드 ${s.you.side === 'both' ? '(양면: 지불 2배)' : ''}`
-        : `당신 차례 — 체크 또는 레이즈 (최대 +${s.maxRaiseAdd})`;
-    } else {
-      $('status').textContent = '상대의 배팅을 기다리는 중...';
-    }
-  } else if (s.phase === 'over') {
-    $('nextActions').classList.remove('hidden');
-    $('nextBtn').disabled = s.you.ready;
-    $('nextBtn').textContent = s.you.ready ? '상대 기다리는 중...' : '다음 게임 ▶';
-    $('status').textContent = '라운드 종료';
-  } else if (s.phase === 'gameover') {
-    $('gameoverText').textContent = s.you.coins > 0 ? '🏆 승리했습니다!' : '😢 패배했습니다...';
-    $('gameoverOverlay').classList.remove('hidden');
-    $('rematchBtn').disabled = s.you.ready;
-  } else if (s.phase === 'waiting') {
-    $('status').textContent = '상대 입장 대기 중...';
-  }
-
-  if (s.phase !== 'gameover') $('gameoverOverlay').classList.add('hidden');
-
-  // ----- 결과 배너 -----
-  const banner = $('resultBanner');
-  $('myChip').classList.remove('winner-glow');
-  $('oppChip').classList.remove('winner-glow');
-  if ((s.phase === 'over' || s.phase === 'gameover') && s.winner !== undefined) {
-    banner.classList.remove('hidden', 'win', 'lose', 'draw');
-    if (s.winner === -1) {
-      banner.classList.add('draw');
-      banner.innerHTML = `🔵 무승부<div class="sub">팟은 다음 게임으로 이월됩니다</div>`;
-    } else if (s.winner === s.youIdx) {
-      banner.classList.add('win');
-      banner.innerHTML = `🏆 승리!<div class="sub">+${s.gain || 0}코인 획득</div>`;
-      $('myChip').classList.add('winner-glow');
-    } else {
-      banner.classList.add('lose');
-      banner.innerHTML = `패배...<div class="sub">${s.opp.name}이(가) ${s.gain || 0}코인 획득</div>`;
-      $('oppChip').classList.add('winner-glow');
-    }
-  } else {
-    banner.classList.add('hidden');
-  }
-
-  const log = $('log');
-  log.innerHTML = s.log.map(l => `<div>${l}</div>`).join('');
-  log.scrollTop = log.scrollHeight;
-}
+const wrap = document.getElementById('games');
+wrap.innerHTML =
+  GAMES.map(g => `
+    <a class="card" href="${g.url}">
+      <div class="emoji">${g.emoji}</div>
+      <div class="name">${g.name}</div>
+      <div class="desc">${g.desc}</div>
+      <div class="play">플레이 ▶</div>
+    </a>`).join('') +
+  Array.from({ length: COMING_SOON }, () => `
+    <div class="card soon">
+      <div class="emoji">❓</div>
+      <div class="name">준비 중</div>
+      <div class="desc">새로운 미니게임이 곧 추가됩니다</div>
+      <div class="play">Coming Soon</div>
+    </div>`).join('');
 </script>
 </body>
 </html>

@@ -12,9 +12,13 @@ const ANTE = 1;
 const BOTH_BONUS = 10;
 
 // ---------- 정적 파일 서버 ----------
+// '/' → 게임 선택 허브, '/poker/' → 양면 포커 (게임은 public/<게임>/ 폴더에 추가)
 const server = http.createServer((req, res) => {
-  let file = req.url === '/' ? '/index.html' : req.url.split('?')[0];
-  const fp = path.join(__dirname, 'public', path.normalize(file).replace(/^(\.\.[\/\\])+/, ''));
+  let file = req.url.split('?')[0];
+  if (file.endsWith('/')) file += 'index.html';
+  let fp = path.join(__dirname, 'public', path.normalize(file).replace(/^(\.\.[\/\\])+/, ''));
+  // 확장자 없는 경로(/poker 등)는 폴더로 간주
+  if (!path.extname(fp)) fp = path.join(fp, 'index.html');
   fs.readFile(fp, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
     const ext = path.extname(fp);
@@ -24,7 +28,18 @@ const server = http.createServer((req, res) => {
   });
 });
 
-const wss = new WebSocketServer({ server });
+// ---------- WebSocket 라우팅 ----------
+// 게임별로 경로를 나눔: 새 게임을 만들면 WebSocketServer를 추가하고 아래 upgrade에 등록
+const wss = new WebSocketServer({ noServer: true }); // 양면 포커: /ws/poker
+
+server.on('upgrade', (req, socket, head) => {
+  const url = (req.url || '').split('?')[0];
+  if (url === '/ws/poker' || url === '/') {
+    wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+  } else {
+    socket.destroy();
+  }
+});
 const rooms = new Map(); // code -> room
 
 function makeCode() {
@@ -406,4 +421,4 @@ wss.on('connection', (ws) => {
   });
 });
 
-server.listen(PORT, () => console.log(`양면 포커 서버 실행 중: http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`미니게임 서버 실행 중: http://localhost:${PORT}`));
